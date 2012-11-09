@@ -3,7 +3,27 @@
 Usage
 
 swipl -s load.pl
-?-spider('http://somesite').
+?-spider('http://somesite.com/', Uris).
+
+?- spider_to_file('http://somesite.com/', 'myuris.pl').
+myuris.pl will have a bare list in it, you'll have to wrap it manually
+to load it.
+
+either way, the list contains entries of form
+
+type-uri
+where both are atoms
+type is one of
+
+ * asset Something like an image or css file that we don't inspect
+ * misformed this url is misformed (currently spiderman has rather
+ strict ideas about what's misformed. http:www.google.com is misformed.
+ www.google.com is a local link.
+ * not_http  we don't follow file: mailto: etc etc
+ * external a link (not followed) to an external site
+ * internal a link within the site
+
+ anchor links are ignored without adding to the list
 
 */
 
@@ -73,7 +93,7 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	uri_data(scheme, Components, Scheme),
 	Scheme \= http,
 	!,
-	progress_format('not http ~w~n', [Todo]),
+	progress_format('not_http ~w~n', [Todo]),
 	spider(Authority, TBD, [not_http-Todo|Visited], Uris).
 
 % external site
