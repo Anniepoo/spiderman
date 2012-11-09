@@ -19,9 +19,6 @@ spider_to_file(Root, FileName) :-
 	writeq(Stream, Uris),
 	close(Stream).
 
-progress_format(Format, Args) :-
-	format(Format, Args).
-
 spider(Root, Uris) :-
 	uri_components(Root, Components),
 	uri_data(authority, Components, Authority),
@@ -33,7 +30,7 @@ spider(_, [], Visited, Visited).
 %DEBUG
 /*
 spider(_, [Todo|_], _, _) :-
-	progress_format('~w ||| ', [Todo]),
+	debug(spider, '~w ||| ', [Todo]),
 	flush,
 	fail.
 */
@@ -47,7 +44,7 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	asset(A),
 	atom_concat(_, A, Todo),
 	!,
-	progress_format('asset ~w~n', [Todo]),
+	debug(spider, 'asset ~w~n', [Todo]),
 	spider(Authority, TBD, [asset-Todo|Visited], Uris).
 
 % anchor
@@ -63,7 +60,7 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	uri_data(authority, Components, TodoAuthority),
 	var(TodoAuthority),
 	!,
-	progress_format('misformed ~w~n', [Todo]),
+	debug(spider, 'misformed ~w~n', [Todo]),
 	spider(Authority, TBD, [misformed-Todo|Visited], Uris).
 
 % not http
@@ -73,7 +70,7 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	uri_data(scheme, Components, Scheme),
 	Scheme \= http,
 	!,
-	progress_format('not http ~w~n', [Todo]),
+	debug(spider, 'not http ~w~n', [Todo]),
 	spider(Authority, TBD, [not_http-Todo|Visited], Uris).
 
 % external site
@@ -83,21 +80,21 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	uri_data(authority, Components, TodoAuthority),
 	TodoAuthority \= Authority,
 	!,
-	progress_format('external ~w~n', [Todo]),
+	debug(spider, 'external ~w~n', [Todo]),
 	spider(Authority, TBD, [external-Todo|Visited], Uris).
 
 % internal
 spider(Authority, [Todo|TBD], Visited, Uris) :-
 	atomic_list_concat(['http://', Authority, '/'], Base),
 	uri_resolve(Todo, Base, Global),
-	progress_format('internal ~w~n', [Global]),
+	debug(spider, 'internal ~w~n', [Global]),
 	get_hrefs(Global, Hrefs),
 	append(Hrefs, TBD, NewTBD),
 	spider(Authority, NewTBD, [internal-Todo|Visited], Uris).
 
 % stumped
 spider(Authority, [Todo|TBD], Visited, Uris) :-
-	progress_format('stumped ~w~n', [Todo]),
+	debug(spider, 'stumped ~w~n', [Todo]),
 	!,
 	spider(Authority, TBD, [misformed-Todo|Visited], Uris).
 
