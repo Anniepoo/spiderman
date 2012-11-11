@@ -3,20 +3,49 @@
 Usage
 
 swipl -s load.pl
-?-spider('http://somesite').
+?-spider('http://somesite.com/', Uris).
+
+?- spider_to_file('http://somesite.com/', 'myuris.pl').
+myuris.pl will have a bare list in it, you'll have to wrap it manually
+to load it.
+
+either way, the list contains entries of form
+
+type-uri
+where both are atoms
+type is one of
+
+ * asset Something like an image or css file that we don't inspect
+ * misformed this url is misformed (currently spiderman has rather
+ strict ideas about what's misformed. http:www.google.com is misformed.
+ www.google.com is a local link.
+ * not_http  we don't follow file: mailto: etc etc
+ * external a link (not followed) to an external site
+ * internal a link within the site
+'
+ anchor links are ignored without adding to the list
 
 */
 
-:-module(load, [spider/2]).
+% :-module(load, [spider/2, spider_to_file/2]).
 
 :- use_module(library(uri)).
 :- use_module(library(http/http_client)).
 :- use_module(library(dcg/basics)).
+:- ensure_loaded(analyze).
+
+respider :-
+	spider_to_file('http://127.0.0.1:3040/', 'swipl_spider.pl'),
+	retractall(endpoint(_,_)),
+	consult(swipl_spider),
+	assert_from_list.
 
 spider_to_file(Root, FileName) :-
 	spider(Root, Uris),
 	open(FileName, write, Stream, []),
+	write(Stream, 'spidered_uris('),
 	writeq(Stream, Uris),
+	write(Stream, ').'),
 	close(Stream).
 
 progress_format(Format, Args) :-
@@ -37,6 +66,12 @@ spider(_, [Todo|_], _, _) :-
 	flush,
 	fail.
 */
+
+spider('127.0.0.1:3040', [Todo|TBD], Visited, Uris) :-
+	atom_concat('http://www.swi-prolog.org/', Rest, Todo),
+	atom_concat('http://127.0.0.1:3040/', Rest, NewTodo),
+	spider('127.0.0.1:3040', [NewTodo|TBD], Visited, Uris).
+
 % visited
 spider(Authority, [Todo|TBD], Visited, Uris) :-
 	member(_-Todo, Visited),
@@ -73,7 +108,7 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	uri_data(scheme, Components, Scheme),
 	Scheme \= http,
 	!,
-	progress_format('not http ~w~n', [Todo]),
+	progress_format('not_http ~w~n', [Todo]),
 	spider(Authority, TBD, [not_http-Todo|Visited], Uris).
 
 % external site
@@ -81,7 +116,7 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	uri_is_global(Todo),
 	uri_components(Todo, Components),
 	uri_data(authority, Components, TodoAuthority),
-	TodoAuthority \= Authority,
+	Authority \= TodoAuthority,
 	!,
 	progress_format('external ~w~n', [Todo]),
 	spider(Authority, TBD, [external-Todo|Visited], Uris).
@@ -102,14 +137,47 @@ spider(Authority, [Todo|TBD], Visited, Uris) :-
 	spider(Authority, TBD, [misformed-Todo|Visited], Uris).
 
 
-get_hrefs(URI, Hrefs) :-
+get_hrefs(URI, ContextHrefs) :-
 	catch(
 	     http_get(URI, Data, [timeout(3), to(codes)]),
 	     _,
-	     Data = ""),
+	     format(codes(Data), ' href="404?uri=~w" ', [URI])),
 	debug(hrefs, 'checking ~w', [URI]),
 	phrase(hrefs_of(Hrefs), Data),
-	debug(hrefs, 'got ~w~n', [Hrefs]).
+	path_context(URI, Context),
+	maplist(contextualize(Context), Hrefs, ContextHrefs),
+	debug(hrefs, 'got ~w~n', [ContextHrefs]).
+
+path_context(URI, Context) :-
+	uri_components(URI,
+		       uri_components(Scheme, Authority, Path, _Search, _Frag)),
+	trim_path(Path, TrimPath),
+	uri_components(Context,
+		       uri_components(Scheme, Authority , TrimPath, _ , _)).
+
+trim_path(Path, TrimPath) :-
+	trim_path_(Path, TrimPath),
+	atom_concat(_, '/', TrimPath),!.
+trim_path(Path, TrimPath) :-
+	trim_path_(Path, TrimPathNS),
+	atom_concat(TrimPathNS, '/', TrimPath).
+
+trim_path_(Path, TrimPath) :-
+	atom_concat(TrimPath, Rest, Path),
+	atom_concat('/', Noslash, Rest),
+	atom_codes(Noslash, C),
+	\+ memberchk(0'/ , C),!.
+% no / in path
+trim_path_(_, '').
+
+contextualize(_, Href, Href) :-
+	atom_concat('#', _, Href).
+contextualize(_Context, Href, Href) :-
+	atom_concat('/', _, Href),!.
+contextualize(_, Href, Href) :-
+	uri_is_global(Href).
+contextualize(Context, Href, ContextHref) :-
+	atom_concat(Context, Href, ContextHref).
 
 hrefs_of([Href|T]) -->
 	string(_),
@@ -138,13 +206,15 @@ asset('.jpg').
 asset('.jpeg').
 asset('.psd').
 asset('.xls').
-asset('.txt').
+% asset('.txt').  turns out swipl site serves html from tghese
 asset('.doc').
 asset('.docx').
 asset('.xml').
 asset('.j2k').
 asset('.tga').
-
+asset('.odt').
+asset('.ppt').
+asset('.bib').
 
 
 
