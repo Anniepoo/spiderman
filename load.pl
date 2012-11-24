@@ -6,8 +6,9 @@ swipl -s load.pl
 ?-spider('http://somesite.com/', Uris).
 
 ?- spider_to_file('http://somesite.com/', 'myuris.pl').
-myuris.pl will have a bare list in it, you'll have to wrap it manually
-to load it.
+
+myuris.pl will have a list in it with the fact spidered_uris/1
+whose arg is the list, and spidered_links/1, a list of From-To links
 
 either way, the list contains entries of form
 
@@ -24,6 +25,14 @@ type is one of
  * internal a link within the site
 '
  anchor links are ignored without adding to the list
+
+ querying assert_from_list (from analyze.pl) when swipl_spider exists
+ causes the endpoints to be asserted as facts endpoint(_,_).
+
+ At this point you're ready to use the tools in analyze.pl
+
+ @author Anne Ogborn
+ @license LGPL
 
 */
 

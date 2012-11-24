@@ -8,6 +8,8 @@ for the string href=" or href=' to find the hrefs.
 
 Usage:
 
+(obsolete, see the source to load.pl)
+
 swipl -s load.pl
 
 spider('http://www.somesite.com/', Uris)
@@ -21,3 +23,4 @@ spider('http://www.somesite.com/', Uris)
     not http mailto:annie66us@yahoo.com
     Uris = ['mailto:annie66us@yahoo.com', 'pathwayspromo.mp4', 'pathwayslmsmanual.pdf', 'style.css', 'http://www.pathwayslms.com/'] .
 
+Note that at the moment this has some hard links to the swi-prolog website in the analysis section.

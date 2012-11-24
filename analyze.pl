@@ -2,6 +2,14 @@
 
 :- discontiguous is/3,ispre/3,value/2,tags/2.
 
+
+%%	write_graphml
+%
+%	Writes a file called spider.graphml  that
+%	can be opened with yED or similar editor (my system
+%	doesn't have enough memory to do much with the swipl site
+%	once opened so this is ill tested
+%
 write_graphml :-
 	open('spider.graphml', write, Stream, []),
 	write(Stream,
@@ -45,6 +53,11 @@ write_edges(Stream, [From-To|T]) :-
 write_edges(Stream, [X|T]) :-
 	format('evil ~w~n', [X]),
 	write_edges(Stream, T).
+
+%%	assert_from_list
+%
+%	Causes the spidered uris and links to be asserted as facts.
+%
 assert_from_list :-
 	retractall(endpoint(_,_)),
 	retractall(link(_,_)),
@@ -68,6 +81,10 @@ local_endpoint(Uri) :-
 	endpoint(internal, Uri),
 	\+ atom_concat('/', _, Uri).
 
+%%	unknown_endpoint(-Type:uri_type, -Uri:atom) is nondet
+%
+%	endpoint for which there is no corresponding 'is' clause
+%
 unknown_endpoint(Type, Uri) :-
 	endpoint(Type, Uri),
 	\+ is(Type, Uri, _).
