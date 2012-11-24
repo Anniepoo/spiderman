@@ -41,23 +41,28 @@ respider :-
 	assert_from_list.
 
 spider_to_file(Root, FileName) :-
-	spider(Root, Uris),
+	spider(Root, Uris, Links),
 	open(FileName, write, Stream, []),
 	write(Stream, 'spidered_uris('),
 	writeq(Stream, Uris),
 	write(Stream, ').'),
+	nl(Stream),
+	write(Stream, 'spidered_links('),
+	writeq(Stream, Links),
+	write(Stream, ').'),
+	nl(Stream),
 	close(Stream).
 
 progress_format(Format, Args) :-
 	format(Format, Args).
 
-spider(Root, Uris) :-
+spider(Root, Uris, Links) :-
 	uri_components(Root, Components),
 	uri_data(authority, Components, Authority),
-	spider(Authority, [Root], [], Uris).
+	spider(Authority, [Root], [], Uris, Links).
 
 % done
-spider(_, [], Visited, Visited).
+spider(_, [], Visited, Visited, []).
 
 %DEBUG
 /*
@@ -67,75 +72,82 @@ spider(_, [Todo|_], _, _) :-
 	fail.
 */
 
-spider('127.0.0.1:3040', [Todo|TBD], Visited, Uris) :-
-	atom_concat('http://www.swi-prolog.org/', Rest, Todo),
-	atom_concat('http://127.0.0.1:3040/', Rest, NewTodo),
-	spider('127.0.0.1:3040', [NewTodo|TBD], Visited, Uris).
+spider('127.0.0.1:3040', ['http://127.0.0.1:3040'|TBD], Visited, Uris, Links) :-
+	spider('127.0.0.1:3040', TBD, Visited, Uris, Links).
+
+spider('127.0.0.1:3040', [Todo|TBD], Visited, Uris, Links) :-
+	atom_concat('http://www.swi-prolog.org', Rest, Todo),
+	atom_concat('http://127.0.0.1:3040', Rest, NewTodo),
+	spider('127.0.0.1:3040', [NewTodo|TBD], Visited, Uris, Links).
 
 % visited
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, Links) :-
 	member(_-Todo, Visited),
-	spider(Authority, TBD, Visited, Uris).
+	spider(Authority, TBD, Visited, Uris, Links).
 
 % assets
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, Links) :-
 	asset(A),
 	atom_concat(_, A, Todo),
 	!,
 	progress_format('asset ~w~n', [Todo]),
-	spider(Authority, TBD, [asset-Todo|Visited], Uris).
+	spider(Authority, TBD, [asset-Todo|Visited], Uris, Links).
 
 % anchor
 % we don't add them to visited, just ignore them
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, Links) :-
 	atom_concat('#', _, Todo),
-	spider(Authority, TBD, Visited, Uris).
+	spider(Authority, TBD, Visited, Uris, Links).
 
 % misformed urls
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, Links) :-
 	uri_is_global(Todo),
 	uri_components(Todo, Components),
 	uri_data(authority, Components, TodoAuthority),
 	var(TodoAuthority),
 	!,
 	progress_format('misformed ~w~n', [Todo]),
-	spider(Authority, TBD, [misformed-Todo|Visited], Uris).
+	spider(Authority, TBD, [misformed-Todo|Visited], Uris, Links).
 
 % not http
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, Links) :-
 	uri_is_global(Todo),
 	uri_components(Todo, Components),
 	uri_data(scheme, Components, Scheme),
 	Scheme \= http,
 	!,
 	progress_format('not_http ~w~n', [Todo]),
-	spider(Authority, TBD, [not_http-Todo|Visited], Uris).
+	spider(Authority, TBD, [not_http-Todo|Visited], Uris, Links).
 
 % external site
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, Links) :-
 	uri_is_global(Todo),
 	uri_components(Todo, Components),
 	uri_data(authority, Components, TodoAuthority),
 	Authority \= TodoAuthority,
 	!,
 	progress_format('external ~w~n', [Todo]),
-	spider(Authority, TBD, [external-Todo|Visited], Uris).
+	spider(Authority, TBD, [external-Todo|Visited], Uris, Links).
 
 % internal
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, NewLinks) :-
 	atomic_list_concat(['http://', Authority, '/'], Base),
 	uri_resolve(Todo, Base, Global),
 	progress_format('internal ~w~n', [Global]),
+	(   Global = 'http://127.0.0.1:3040' -> gtrace ; true),
 	get_hrefs(Global, Hrefs),
 	append(Hrefs, TBD, NewTBD),
-	spider(Authority, NewTBD, [internal-Todo|Visited], Uris).
+	maplist(kv(Todo), Hrefs, KVRefs),
+	spider(Authority, NewTBD, [internal-Todo|Visited], Uris, Links),
+	append(KVRefs, Links, NewLinks).
 
 % stumped
-spider(Authority, [Todo|TBD], Visited, Uris) :-
+spider(Authority, [Todo|TBD], Visited, Uris, Links) :-
 	progress_format('stumped ~w~n', [Todo]),
 	!,
-	spider(Authority, TBD, [misformed-Todo|Visited], Uris).
+	spider(Authority, TBD, [misformed-Todo|Visited], Uris, Links).
 
+kv(K, V, K-V).
 
 get_hrefs(URI, ContextHrefs) :-
 	catch(
